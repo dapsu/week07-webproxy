@@ -1,6 +1,6 @@
 #include "csapp.h"
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) {   // 배열 길이, filename, port ?
     int clientfd;
     char *host, *port, buf[MAXLINE];
     /*
