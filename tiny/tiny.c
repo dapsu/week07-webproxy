@@ -81,7 +81,7 @@ void doit(int fd) {
    * 요청이 정적 또는 동적 콘텐츠를 위한 것인지 나타내는 플래그 설정
    */
   is_static = parse_uri(uri, filename, cgiargs);
-  if (stat(filename, &buf) < 0) {
+  if (stat(filename, &sbuf) < 0) {
     clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
     return;
   }
@@ -139,8 +139,8 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 void read_requesthdrs(rio_t *rp) {
   char buf[MAXLINE];
 
-  Rio_readlineb(rp, buf, MAXLINE);
-  while (strcmp(buf, "\r\n")) {
+  Rio_readlineb(rp, buf, MAXLINE);    // MAXLINE까지 읽기
+  while (strcmp(buf, "\r\n")) {       // EOF(한 줄 전체가 개행문자인 곳) 만날 때 까지 계속 읽기
     Rio_readlineb(rp, buf, MAXLINE);
     printf("%s", buf);
   }
@@ -197,12 +197,12 @@ void serve_static(int fd, char *filename, int filesize) {
 
   // Send response body to client
   srcfd = Open(filename, O_RDONLY, 0);                          // 읽기 위해서 filename을 오픈하고 식별자 얻어옴
-  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);   // mmap함수: 요청한 파일을 가상메모리 영역으로 매핑
-  srcp = malloc(filesize);
+  srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);   // mmap함수: 요청한 파일을 가상메모리 영역으로 매핑
+  // srcp = malloc(filesize);
   Close(srcfd);                                                 // 파일을 메모리로 매핑 후 더이상 이 식별자 필요X -> 파일 닫기
   Rio_writen(fd, srcp, filesize);                               // 실제로 파일을 클라이언트에게 전송
-  // Munmap(srcp, filesize);                                       // 매핑된 가상메모리 주소를 반환(메모리 누수 방지에 중요)
-  free(srcp);
+  Munmap(srcp, filesize);                                       // 매핑된 가상메모리 주소를 반환(메모리 누수 방지에 중요)
+  // free(srcp);
 }
 
 /*
