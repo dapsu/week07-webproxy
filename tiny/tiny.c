@@ -203,7 +203,7 @@ void serve_static(int fd, char *filename, int filesize, char *method) {
 
   // 11.11문제 반영 - HEAD 메소드 지원
   if (strcasecmp(method, "HEAD") == 0) {
-    return;
+    return; 
   }
 
   // Send response body to client
