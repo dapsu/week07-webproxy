@@ -14,27 +14,28 @@ int parse_uri(char *uri, char *filename, char *cgiargs);
 void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *cgiargs);
-void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
-                 char *longmsg);
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 /*
  * tiny는 반복실행 서버. open_listenfd함수 호출하여 listen socket 오픈 후,
    tiny는 전형적인 무한 서버 루프 실행, 반복적으로 연결 요청을 접수하고,
    트랜잭션을 수행하고, 자신 쪽의 연결 끝을 닫음
  */
-int main(int argc, char **argv) {  // 배열 길이, filename, port ?
+int main(int argc, char **argv) {
   int listenfd, connfd;
   char hostname[MAXLINE], port[MAXLINE];  // #define MAXLINE 8192 (Max text line length).. why??
   socklen_t clientlen;                    // socklen_t <-- unsigned int..?
   struct sockaddr_storage clientaddr;     // sockaddr_storage 구조체는 모든 형태의 소켓 주소를 저장하기에 충분
 
   /* Check command line args */
-  if (argc != 2) {
+  if (argc != 2) {                        // 실행 시 port 적지 않았다면,
     fprintf(stderr, "usage: %s <port>\n", argv[0]);
     exit(1);
   }
 
-  listenfd = Open_listenfd(argv[1]);
+  listenfd = Open_listenfd(argv[1]);  // listen socket open
+
+  // 무한 서버 루프 실행
   while (1) {
     clientlen = sizeof(clientaddr);
     connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);  // line:netp:tiny:accept
@@ -165,8 +166,8 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
     // 모든 CGI인자 추출
     ptr = index(uri, '?');
     if (ptr) {
-      strcpy(cgiargs, ptr+1);
-      *ptr = '\0';
+      strcpy(cgiargs, ptr+1);   // 물음표 뒤에 인자 붙이기
+      *ptr = '\0';              // 포인터는 문자열 마지막으로 위치
     }
     else {
       strcpy(cgiargs, "");
@@ -180,7 +181,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
 
 void serve_static(int fd, char *filename, int filesize) {
   int srcfd;
-  char *srcp, filetype[MAXLINE], buf[MAXLINE];
+  char *srcp, filetype[MAXLINE], buf[MAXBUF];
 
   // Send response headers to client
   get_filetype(filename, filetype);   // 파일 타입 결정
@@ -189,18 +190,19 @@ void serve_static(int fd, char *filename, int filesize) {
   sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
   sprintf(buf, "%sConnection: close\r\n", buf);
   sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
-  sprintf(buf, "%sCOntent-type: %s\r\n\r\n", buf, filetype);
+  sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
   Rio_writen(fd, buf, strlen(buf));
   printf("Response headers: \n");
   printf("%s", buf);
 
   // Send response body to client
   srcfd = Open(filename, O_RDONLY, 0);                          // 읽기 위해서 filename을 오픈하고 식별자 얻어옴
-  srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);   // mmap함수: 요청한 파일을 가상메모리 영역으로 매핑
+  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);   // mmap함수: 요청한 파일을 가상메모리 영역으로 매핑
+  srcp = malloc(filesize);
   Close(srcfd);                                                 // 파일을 메모리로 매핑 후 더이상 이 식별자 필요X -> 파일 닫기
   Rio_writen(fd, srcp, filesize);                               // 실제로 파일을 클라이언트에게 전송
-  Munmap(srcp, filesize);                                       // 매핑된 가상메모리 주소를 반환(메모리 누수 방지에 중요)
-
+  // Munmap(srcp, filesize);                                       // 매핑된 가상메모리 주소를 반환(메모리 누수 방지에 중요)
+  free(srcp);
 }
 
 /*
@@ -208,16 +210,24 @@ void serve_static(int fd, char *filename, int filesize) {
  */
 // 파일 형식 추출하기
 void get_filetype(char *filename, char *filetype) {
-  if (strstr(filename, ".html"))
+  if (strstr(filename, ".html")) {
     strcpy(filetype, "text/html");
-  else if (strstr(filename, ".gif"))
+  }
+  else if (strstr(filename, ".gif")) {
     strcpy(filetype, "image/gif");
-  else if (strstr(filename, ".png"))
+  }
+  else if (strstr(filename, ".png")) {
     strcpy(filetype, "image/png");
-  else if (strstr(filename, ".jpg"))
+  }
+  else if (strstr(filename, ".jpg")) {
     strcpy(filetype, "image/jpeg");
-  else
+  }
+  else if (strstr(filename, ".mp4")) {
+    strcpy(filetype, "video/mp4");
+  }
+  else {
     strcpy(filetype, "text/plain");
+  }
 }
 
 // serve_dynamic함수는 클라이언트에 성공을 알려주는 응답 라인을 보내는 것으로 시작
