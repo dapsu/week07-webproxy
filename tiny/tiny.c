@@ -11,9 +11,13 @@
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
 int parse_uri(char *uri, char *filename, char *cgiargs);
-void serve_static(int fd, char *filename, int filesize);
+// void serve_static(int fd, char *filename, int filesize);
+// 11.11문제 반영 - HEAD 메소드 지원
+void serve_static(int fd, char *filename, int filesize, char *method);
 void get_filetype(char *filename, char *filetype);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
+// void serve_dynamic(int fd, char *filename, char *cgiargs);
+// 11.11문제 반영 - HEAD 메소드 지원
+void serve_dynamic(int fd, char *filename, char *cgiargs, char *method);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 /*
@@ -70,7 +74,8 @@ void doit(int fd) {
   sscanf(buf, "%s %s %s", method, uri, version);  // sscanf(): buf에서 argumment-list가 제공하는 위치로 데이터 읽음
   
   // GET이 아닌 다른 method 요청시 에러 메시지 보내고, main루틴으로 돌아오고, 연결을 닫고 다음 연결 요청 기다림
-  if (strcasecmp(method, "GET")) {  // 대소문자를 구분하지 않고 두 인자 비교. 같으면 0 리턴
+  // if (strcasecmp(method, "GET")) {  // 대소문자를 구분하지 않고 두 인자 비교. 같으면 0 리턴
+  if (!(strcasecmp(method, "GET") == 0 || strcasecmp(method, "HEAD") == 0)) {  // 대소문자를 구분하지 않고 두 인자 비교. 같으면 0 리턴
     clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
     return;
   }
@@ -96,7 +101,7 @@ void doit(int fd) {
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
       return;
     }
-    serve_static(fd, filename, sbuf.st_size);  // 읽기 권한 있다면 클라이언트에게 정적 콘텐츠 제공
+    serve_static(fd, filename, sbuf.st_size, method);  // 읽기 권한 있다면 클라이언트에게 정적 콘텐츠 제공
   }
   // 동적 콘텐츠 요구하는 경우
   else {
@@ -107,14 +112,14 @@ void doit(int fd) {
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run CGI program");
       return;
     }
-    serve_dynamic(fd, filename, cgiargs);  // 실행 권한 있다면 클라이언트에게 동적 콘텐츠 제공
+    serve_dynamic(fd, filename, cgiargs, method);  // 실행 권한 있다면 클라이언트에게 동적 콘텐츠 제공
   }
 }
 
 /*
  * HTTP 응답을 응답 라인에 적절한 상태 코드와 상태 메시지와 함께 클라이언트에 보내며,
    브라우저 사용자에게 에러를 설명하는 응답 본체에 HTML 파일도 함께 보냄
-   (HTML 응답은 본체에서 콘텐츠의 크기와 타입ㅇ르 나타내야 한다)
+   (HTML 응답은 본체에서 콘텐츠의 크기와 타입을 나타내야 한다)
  */
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
   char buf[MAXLINE], body[MAXBUF];  // MAXBUF 8192(Max I/O buffer size)
@@ -136,6 +141,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
   Rio_writen(fd, buf, strlen(body));
 }
 
+// tiny는 요청 헤더 내의 어떤 정보도 사용하지 않음. 이들을 읽고 무시
 void read_requesthdrs(rio_t *rp) {
   char buf[MAXLINE];
 
@@ -155,7 +161,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
   if (!strstr(uri, "cgi-bin")) {
     strcpy(cgiargs, "");                // CGI 인자 스트링 지우고 
     strcpy(filename, ".");              // 상대 리눅스 경로이름으로 변환
-    strcat(filename, uri);
+    strcat(filename, uri);              // strcat(*str1, *str2): str2를 str1에 연결하고 NULL 문자로 결과 스트링 종료
     if (uri[strlen(uri)-1] == '/') {    // URI가 '/'로 끝난다면 
       strcat(filename, "home.html");    // home.html로 파일이름 추가
     }
@@ -179,7 +185,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
   }
 }
 
-void serve_static(int fd, char *filename, int filesize) {
+void serve_static(int fd, char *filename, int filesize, char *method) {
   int srcfd;
   char *srcp, filetype[MAXLINE], buf[MAXBUF];
 
@@ -194,6 +200,11 @@ void serve_static(int fd, char *filename, int filesize) {
   Rio_writen(fd, buf, strlen(buf));
   printf("Response headers: \n");
   printf("%s", buf);
+
+  // 11.11문제 반영 - HEAD 메소드 지원
+  if (strcasecmp(method, "HEAD") == 0) {
+    return;
+  }
 
   // Send response body to client
   srcfd = Open(filename, O_RDONLY, 0);                          // 읽기 위해서 filename을 오픈하고 식별자 얻어옴
@@ -231,7 +242,7 @@ void get_filetype(char *filename, char *filetype) {
 }
 
 // serve_dynamic함수는 클라이언트에 성공을 알려주는 응답 라인을 보내는 것으로 시작
-void serve_dynamic(int fd, char *filename, char *cgiargs) {
+void serve_dynamic(int fd, char *filename, char *cgiargs, char *method) {
   char buf[MAXLINE], *emptylist[] = {NULL};
 
   // Return first part of HTTP response
@@ -244,6 +255,8 @@ void serve_dynamic(int fd, char *filename, char *cgiargs) {
   if (Fork() == 0) {  // Child
   // Real sercer would set all CGI vars here
     setenv("QUERY_STRING", cgiargs, 1);     // QUERY_STRING의 환경변수를 요청 URI의 CGI 인자들로 초기화
+    // 11.11문제 반영 - HEAD 메소드 지원
+    setenv("REQUEST_METHOD", method, 1);    // REQUEST_METHOD: GET or POST
     Dup2(fd, STDOUT_FILENO);                // 자식은 자식의 표준 출력은 연결 파일 식별자로 재지정
     Execve(filename, emptylist, environ);   // CGI프로그램 로드 후 실행
   }
