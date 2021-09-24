@@ -208,12 +208,14 @@ void serve_static(int fd, char *filename, int filesize, char *method) {
 
   // Send response body to client
   srcfd = Open(filename, O_RDONLY, 0);                          // 읽기 위해서 filename을 오픈하고 식별자 얻어옴
-  srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);   // mmap함수: 요청한 파일을 가상메모리 영역으로 매핑
-  // srcp = malloc(filesize);
+  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);   // mmap함수: 요청한 파일을 가상메모리 영역으로 매핑
+  // 11.9 문제 반영
+  srcp = malloc(filesize);
+  Rio_readn(srcfd, srcp, filesize);
   Close(srcfd);                                                 // 파일을 메모리로 매핑 후 더이상 이 식별자 필요X -> 파일 닫기
   Rio_writen(fd, srcp, filesize);                               // 실제로 파일을 클라이언트에게 전송
-  Munmap(srcp, filesize);                                       // 매핑된 가상메모리 주소를 반환(메모리 누수 방지에 중요)
-  // free(srcp);
+  // Munmap(srcp, filesize);                                       // 매핑된 가상메모리 주소를 반환(메모리 누수 방지에 중요)
+  free(srcp);
 }
 
 /*
