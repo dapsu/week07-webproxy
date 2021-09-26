@@ -74,8 +74,8 @@ void doit(int fd) {
   sscanf(buf, "%s %s %s", method, uri, version);  // sscanf(): buf에서 argumment-list가 제공하는 위치로 데이터 읽음
   
   // GET이 아닌 다른 method 요청시 에러 메시지 보내고, main루틴으로 돌아오고, 연결을 닫고 다음 연결 요청 기다림
-  // if (strcasecmp(method, "GET")) {  // 대소문자를 구분하지 않고 두 인자 비교. 같으면 0 리턴
-  if (!(strcasecmp(method, "GET") == 0 || strcasecmp(method, "HEAD") == 0)) {  // 대소문자를 구분하지 않고 두 인자 비교. 같으면 0 리턴
+  // if (strcasecmp(method, "GET")) {  // strcasecmp함수: 대소문자를 구분하지 않고 두 인자 비교. 같으면 0 리턴
+  if (!(strcasecmp(method, "GET") == 0 || strcasecmp(method, "HEAD") == 0)) {  // HEAD 메소드 추가
     clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
     return;
   }
@@ -207,7 +207,7 @@ void serve_static(int fd, char *filename, int filesize, char *method) {
   }
 
   // Send response body to client
-  srcfd = Open(filename, O_RDONLY, 0);                          // 읽기 위해서 filename을 오픈하고 식별자 얻어옴
+  srcfd = Open(filename, O_RDONLY, 0);                          // open함수: filename을 fd로 변환 후, fd번호 리턴, O_RDONLY: Reading only
   // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);   // mmap함수: 요청한 파일을 가상메모리 영역으로 매핑
   // 11.9 문제 반영
   srcp = malloc(filesize);
